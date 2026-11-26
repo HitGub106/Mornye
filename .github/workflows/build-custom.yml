@@ -1,0 +1,81 @@
+
+name: Build Custom Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    env:
+      MORNYE_DISCORD_SDK: "0"
+      MORNYE_RUST_ANDROID_ABIS: arm64-v8a
+
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/share/swift
+          df -h
+
+      - name: Checkout source code
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install Android SDK and NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;30.0.16248370" \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
+            "cmake;4.1.2"
+
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+
+      - name: Setup Rust
+        working-directory: rust_backend
+        run: rustup show
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+
+      - name: Prepare Flutter SDK
+        run: dart scripts/prepare_flutter_sdk.dart
+
+      - name: Install Flutter dependencies
+        run: |
+          flutter pub get
+          dart scripts/gen_l10n.dart
+
+      - name: Build APK
+        run: bash scripts/build_android.sh --lite
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: Mornye-Custom-APK
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          if-no-files-found: error
+          retention-days: 7
