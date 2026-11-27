@@ -186,7 +186,12 @@ class PlayerWidgetService {
       'canNext': state.controls.any(
         (control) => control.action == MediaAction.skipToNext,
       ),
-      'artworkKey': _artwork == null ? '' : _artUri.toString(),
+      // Invalidate the old Android 256px artwork cache after upgrading.
+      'artworkKey': _artwork == null
+          ? ''
+          : Platform.isAndroid
+          ? 'android-hq-v3:$_artUri'
+          : _artUri.toString(),
       'background': _artwork?.background ?? 0xff292433,
     };
     final key = jsonEncode(payload);
@@ -262,11 +267,25 @@ class PlayerWidgetService {
     if (!await file.exists() || await file.length() > 20 * 1024 * 1024) {
       return null;
     }
-    final codec = await ui.instantiateImageCodec(
-      await file.readAsBytes(),
-      targetWidth: 256,
-      targetHeight: 256,
-    );
+    final bytes = await file.readAsBytes();
+    final codec = Platform.isAndroid
+        ? await ui.instantiateImageCodecWithSize(
+            await ui.ImmutableBuffer.fromUint8List(bytes),
+            getTargetSize: (width, height) {
+              const maxSide = 1024;
+              if (width <= maxSide && height <= maxSide) {
+                return ui.TargetImageSize();
+              }
+              return width >= height
+                  ? ui.TargetImageSize(width: maxSide)
+                  : ui.TargetImageSize(height: maxSide);
+            },
+          )
+        : await ui.instantiateImageCodec(
+            bytes,
+            targetWidth: 256,
+            targetHeight: 256,
+          );
     try {
       final frame = await codec.getNextFrame();
       try {

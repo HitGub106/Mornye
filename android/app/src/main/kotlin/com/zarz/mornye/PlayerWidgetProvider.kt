@@ -193,7 +193,16 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             views.setViewVisibility(R.id.player_widget_art, View.VISIBLE)
             views.setImageViewBitmap(R.id.player_widget_art, when {
                 compact && !transparent -> filledCover(context, cover, width, height, density, corner, colors)
-                cover != null -> roundedCover(cover)
+                cover != null -> {
+                    // The fitted album image needs no more pixels than its
+                    // available physical size; leave launcher memory headroom.
+                    val sideDp = when {
+                        wide -> minOf(136, width - 24, height - 24)
+                        compact -> minOf(width - 16, height - 74)
+                        else -> minOf(width - 28, height - 28)
+                    }.coerceAtLeast(1)
+                    roundedCover(cover, (sideDp * density).toInt().coerceIn(1, 768))
+                }
                 else -> placeholder(context, colors)
             })
 
@@ -296,13 +305,16 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             )
         }
 
-        private fun roundedCover(source: Bitmap): Bitmap {
-            val size = 384
-            val scaled = Bitmap.createScaledBitmap(source, size, size, true)
-            val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        private fun roundedCover(source: Bitmap, maxSide: Int): Bitmap {
+            // Preserve the source aspect ratio and never enlarge its bitmap.
+            val scale = minOf(1f, maxSide.toFloat() / maxOf(source.width, source.height))
+            val w = (source.width * scale).toInt().coerceAtLeast(1)
+            val h = (source.height * scale).toInt().coerceAtLeast(1)
+            val scaled = Bitmap.createScaledBitmap(source, w, h, true)
+            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             // Expressive covers use large corners: about a fifth of the side.
-            val radius = size * 0.2f
-            Canvas(result).drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            val radius = minOf(w, h) * 0.2f
+            Canvas(result).drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), radius, radius, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
                 shader = BitmapShader(scaled, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
             })
             if (scaled !== source) scaled.recycle()
@@ -314,7 +326,14 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             context: Context, source: Bitmap?, width: Int, height: Int,
             density: Float, corner: Float, colors: Palette,
         ): Bitmap {
-            val scale = minOf(density, 2f, 512f / maxOf(width, height, 1))
+            // Preserve full-bleed Compact's original crop and scrim. Render
+            // at device density up to 768px, without enlarging source pixels.
+            val maxSide = if (source == null) 512f else 768f
+            val sourceScale = if (source == null) Float.MAX_VALUE else minOf(
+                source.width / width.coerceAtLeast(1).toFloat(),
+                source.height / height.coerceAtLeast(1).toFloat(),
+            )
+            val scale = minOf(density, maxSide / maxOf(width, height, 1), sourceScale)
             val w = (width * scale).toInt().coerceAtLeast(1)
             val h = (height * scale).toInt().coerceAtLeast(1)
             val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
