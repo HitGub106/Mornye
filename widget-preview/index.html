@@ -31,7 +31,7 @@ button{cursor:pointer;font:inherit;color:inherit}button:focus-visible,input:focu
 .controls button{padding:0;border:0;display:grid;place-items:center;background:var(--tonal);color:var(--onTonal);width:var(--side);height:var(--side);border-radius:50%;flex:none}
 .controls button svg{width:24px;height:24px;fill:currentColor}.controls button.play{flex:1;min-width:0;width:auto;height:100%;border-radius:999px;background:var(--primary);color:var(--onPrimary)}.controls button.play svg{width:28px;height:28px}
 .widget.playing button.play{border-radius:var(--playRadius)}.controls button:disabled{opacity:.38;cursor:default}
-.wide{display:flex;align-items:center;padding:var(--padding);gap:var(--wideGap)}.wide .art{height:100%;width:max(0px,min(var(--coverMax),calc(var(--h) - 2 * var(--padding)),calc(var(--w) - 2 * var(--padding) - var(--wideGap) - 2 * var(--side) - 64px - 2 * var(--gap))));flex:none}.wide .details{flex:1}.wide .controls,.tall .controls{justify-content:space-between}.wide .controls button.play,.tall .controls button.play{flex:none;width:64px}
+.wide{display:flex;align-items:center;padding:var(--padding);gap:var(--wideGap)}.wide .art{height:100%;width:max(0px,min(var(--coverMax),calc(var(--h) - 2 * var(--padding)),calc(var(--w) - 2 * var(--padding) - var(--wideGap) - 2 * var(--side) - 64px - 2 * var(--gap))));flex:none}.wide .details{flex:1}.wide .controls{justify-content:space-between}.tall .controls{justify-content:center}.wide .controls button.play,.tall .controls button.play{flex:none;width:64px}
 .tall{display:flex;flex-direction:column;padding:var(--padding)}.tall .art{flex:1}.tall .details{margin-top:var(--titleTop)}
 .compact .art{position:absolute;inset:0;opacity:1}.compact:before{opacity:1}.compact.has-cover .art{background:var(--container)}.compact .cover{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:0}
 .compact.has-cover .art:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 35%,rgb(0 0 0 / var(--scrim)))}
@@ -121,7 +121,7 @@ function slider(parent,key,label,min,max,unit='dp'){
  });el.dataset.unit=unit;
 }
 slider('dimensions','w','Chiều rộng',140,460);slider('dimensions','h','Chiều cao',100,400);
-slider('opacityControls','bgOpacity','Độ đục nền (Wide / Tall)',0,100,'%');slider('opacityControls','scrim','Độ đậm gradient Compact',0,100,'%');
+slider('opacityControls','bgOpacity','Độ đục nền',0,100,'%');slider('opacityControls','scrim','Độ đậm gradient Compact',0,100,'%');
 for(const a of [['radius','Bo góc widget',0,48],['artRadiusPct','Bo góc ảnh bìa',0,50,'%'],['padding','Padding',0,28],['titleSize','Cỡ tên bài',10,26,'sp'],['artistSize','Cỡ nghệ sĩ',8,22,'sp'],['gap','Khoảng cách nút',0,20],['controlHeight','Chiều cao nút Play',28,72],['side','Nút Previous / Next',28,64],['playRadius','Bo góc khi phát',0,40],['coverMax','Ảnh bìa Wide tối đa',40,180],['wideGap','Khoảng cách ảnh và chữ',0,30],['titleTop','Khoảng cách ảnh và chữ Tall',0,28],['controlTop','Khoảng cách nút và chữ',0,24]])slider('styleControls',...a);
 function sync(){for(const [k,v] of Object.entries(values)){const el=$('range-'+k);if(el)el.value=v;}}
 function seedHsl(hex){const [r,g,b]=hex.slice(1).match(/../g).map(x=>parseInt(x,16)/255);const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min,l=(max+min)/2;let h=0,s=0;if(d){s=d/(1-Math.abs(2*l-1));h=60*(max===r?((g-b)/d+6)%6:max===g?(b-r)/d+2:(r-g)/d+4)}return[h,s]}

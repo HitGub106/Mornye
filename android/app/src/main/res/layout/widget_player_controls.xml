@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tall transport: fixed-width play button with equally expanding gaps. -->
+<!-- Tall transport: centered cluster of fixed-width buttons with 6dp gaps. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:gravity="center_vertical" android:orientation="horizontal">
+    android:gravity="center" android:orientation="horizontal">
     <FrameLayout android:id="@+id/player_widget_previous" android:layout_width="48dp" android:layout_height="48dp"
         android:contentDescription="@string/player_widget_previous">
         <ImageView android:id="@+id/player_widget_previous_shape" android:layout_width="match_parent" android:layout_height="match_parent"
@@ -10,7 +10,6 @@
         <ImageView android:id="@+id/player_widget_previous_icon" android:layout_width="24dp" android:layout_height="24dp" android:layout_gravity="center"
             android:src="@drawable/ic_widget_previous" android:importantForAccessibility="no" />
     </FrameLayout>
-    <FrameLayout android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:importantForAccessibility="no" />
     <FrameLayout android:id="@+id/player_widget_play" android:layout_width="64dp" android:layout_height="match_parent"
         android:layout_marginStart="6dp" android:layout_marginEnd="6dp" android:contentDescription="@string/player_widget_play">
         <ImageView android:id="@+id/player_widget_play_shape" android:layout_width="match_parent" android:layout_height="match_parent"
@@ -18,7 +17,6 @@
         <ImageView android:id="@+id/player_widget_play_icon" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center"
             android:src="@drawable/ic_widget_play" android:tint="@color/widgetOnAccent" android:importantForAccessibility="no" />
     </FrameLayout>
-    <FrameLayout android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:importantForAccessibility="no" />
     <FrameLayout android:id="@+id/player_widget_next" android:layout_width="48dp" android:layout_height="48dp"
         android:contentDescription="@string/player_widget_next">
         <ImageView android:id="@+id/player_widget_next_shape" android:layout_width="match_parent" android:layout_height="match_parent"
