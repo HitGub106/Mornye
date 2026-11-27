@@ -168,13 +168,11 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             // shorter sizes without that width use the full-bleed cover.
             val wide = width >= 340 && height < 240
             val compact = !wide && (width < 200 || height < 240)
-            val opacity = backgroundOpacity.coerceIn(0, 100)
-            // A translucent Compact needs separate artwork, otherwise a
-            // full-bleed opaque cover would hide the wallpaper.
-            val fittedCompact = compact && opacity < 100
+            // Compact always retains the original opaque, full-bleed style.
+            // Keep the saved preference for when the widget is resized.
+            val opacity = if (compact) 100 else backgroundOpacity.coerceIn(0, 100)
             val layout = when {
                 wide -> R.layout.widget_player_wide
-                fittedCompact -> R.layout.widget_player_compact_transparent
                 compact -> R.layout.widget_player_compact
                 else -> R.layout.widget_player
             }
@@ -182,10 +180,8 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             val colors = palette(context, theme, seed(state))
             views.setInt(R.id.player_widget_background, "setColorFilter", colors.container)
             val alpha = (opacity * 255 + 50) / 100
-            // At 100% opacity retain the original full-bleed artwork.
-            // For all other values, opacity applies only to the background.
-            val fullBleedArtwork = compact && !fittedCompact && cover != null
-            views.setInt(R.id.player_widget_background, "setImageAlpha", if (fullBleedArtwork) 0 else alpha)
+            val fullBleedArtwork = compact && cover != null
+            views.setInt(R.id.player_widget_background, "setImageAlpha", alpha)
             views.setTextViewText(R.id.player_widget_title, state.optString("title").ifEmpty { context.getString(R.string.player_widget_name) })
             views.setTextViewText(R.id.player_widget_artist, if (active) state.optString("artist") else context.getString(R.string.player_widget_empty))
             views.setViewVisibility(R.id.player_widget_artist, if (showArtist) View.VISIBLE else View.GONE)
@@ -199,12 +195,11 @@ class PlayerWidgetProvider : AppWidgetProvider() {
                 // Reserve 12dp outer padding, 8dp artwork gap, and 176dp
                 // for two 48dp buttons, a fixed 64dp play button and two 8dp gaps.
                 wide -> minOf(180, width - 196, height - 12)
-                fittedCompact -> minOf(width - 16, height - 74)
                 else -> minOf(width - 28, height - 28)
             }
             val (maxSide, _) = bitmapSize(context, coverDp, coverDp)
             views.setImageViewBitmap(R.id.player_widget_art, when {
-                compact && !fittedCompact -> filledCover(context, cover, width, height, density, corner, colors)
+                compact -> filledCover(context, cover, width, height, density, corner, colors)
                 cover != null -> roundedCover(context, cover, maxSide)
                 else -> placeholder(context, colors, maxSide)
             })

@@ -33,11 +33,10 @@ button{cursor:pointer;font:inherit;color:inherit}button:focus-visible,input:focu
 .widget.playing button.play{border-radius:var(--playRadius)}.controls button:disabled{opacity:.38;cursor:default}
 .wide{display:flex;align-items:center;padding:var(--padding);gap:var(--wideGap)}.wide .art{height:100%;width:max(0px,min(var(--coverMax),calc(var(--h) - 2 * var(--padding)),calc(var(--w) - 2 * var(--padding) - var(--wideGap) - 2 * var(--side) - 64px - 2 * var(--gap))));flex:none}.wide .details{flex:1}.wide .controls{justify-content:space-between}.wide .controls button.play{flex:none;width:64px}
 .tall{display:flex;flex-direction:column;padding:var(--padding)}.tall .art{flex:1}.tall .details{margin-top:var(--titleTop)}
-.compact .art{position:absolute;inset:0;opacity:1}.compact.has-cover:not(.fitted):before{opacity:0}.compact.has-cover:not(.fitted) .art{background:var(--container)}.compact .cover{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:0}
-.compact.has-cover:not(.fitted) .art:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 35%,rgb(0 0 0 / var(--scrim)))}
+.compact .art{position:absolute;inset:0;opacity:1}.compact:before{opacity:1}.compact.has-cover .art{background:var(--container)}.compact .cover{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:0}
+.compact.has-cover .art:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 35%,rgb(0 0 0 / var(--scrim)))}
 .compact .placeholder{width:34%;background:none;transform:translateY(-35%);color:var(--muted)}.compact .placeholder svg{width:100%;height:100%}
 .compact .details{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;gap:var(--gap);padding:var(--padding)}.compact .text{flex:1}
-.compact.fitted{display:flex;flex-direction:column;padding:8px}.compact.fitted .art{position:relative;inset:auto;flex:1}.compact.fitted .details{position:relative;inset:auto;padding:0;margin-top:6px}.compact.fitted .cover{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--artRadius)}.compact.fitted .placeholder{width:auto;transform:none;background:var(--tonal);color:var(--onTonal)}.compact.fitted .placeholder svg{width:31.25%;height:31.25%}
 .compact.strong-cover .title{color:white}.compact.strong-cover .artist{color:#ffffffd9}
 .compact .controls{margin:0;height:var(--controlHeight);width:var(--controlHeight);flex:none}.compact .controls .prev,.compact .controls .next{display:none}.compact .controls button.play svg{width:26px;height:26px}
 .meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:12px 0;font-size:13px;color:#b6bdc9}
@@ -122,23 +121,22 @@ function slider(parent,key,label,min,max,unit='dp'){
  });el.dataset.unit=unit;
 }
 slider('dimensions','w','Chiều rộng',140,460);slider('dimensions','h','Chiều cao',100,400);
-slider('opacityControls','bgOpacity','Độ đục nền',0,100,'%');slider('opacityControls','scrim','Độ đậm gradient Compact',0,100,'%');
+slider('opacityControls','bgOpacity','Độ đục nền (Wide / Tall)',0,100,'%');slider('opacityControls','scrim','Độ đậm gradient Compact',0,100,'%');
 for(const a of [['radius','Bo góc widget',0,48],['artRadiusPct','Bo góc ảnh bìa',0,50,'%'],['padding','Padding',0,28],['titleSize','Cỡ tên bài',10,26,'sp'],['artistSize','Cỡ nghệ sĩ',8,22,'sp'],['gap','Khoảng cách nút',0,20],['controlHeight','Chiều cao nút Play',28,72],['side','Nút Previous / Next',28,64],['playRadius','Bo góc khi phát',0,40],['coverMax','Ảnh bìa Wide tối đa',40,180],['wideGap','Khoảng cách ảnh và chữ',0,30],['titleTop','Khoảng cách ảnh và chữ Tall',0,28],['controlTop','Khoảng cách nút và chữ',0,24]])slider('styleControls',...a);
 function sync(){for(const [k,v] of Object.entries(values)){const el=$('range-'+k);if(el)el.value=v;}}
 function seedHsl(hex){const [r,g,b]=hex.slice(1).match(/../g).map(x=>parseInt(x,16)/255);const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min,l=(max+min)/2;let h=0,s=0;if(d){s=d/(1-Math.abs(2*l-1));h=60*(max===r?((g-b)/d+6)%6:max===g?(b-r)/d+2:(r-g)/d+4)}return[h,s]}
 function palette(){const [h,s]=seedHsl($('seed').value);const tone=(sat,l)=>'hsl('+h+' '+(sat*100)+'% '+(l*100)+'%)';const m=n=>Math.min(s,n),cl=(a,b)=>Math.max(a,Math.min(s,b));return $('theme').value==='light'?{container:tone(m(.4),.96),on:tone(m(.2),.11),muted:tone(m(.15),.32),primary:tone(cl(.3,.6),.42),onPrimary:'#fff',tonal:tone(m(.45),.88),onTonal:tone(m(.4),.14)}:{container:tone(m(.42),.15),on:tone(m(.12),.95),muted:tone(m(.18),.76),primary:tone(cl(.35,.75),.8),onPrimary:tone(m(.5),.16),tonal:tone(m(.38),.26),onTonal:tone(m(.3),.9)}}
 function render(){
  const w=$('widget'),l=layout(),active=$('active').checked,playing=$('playing').checked,hasCover=$('showCover').checked;
- const fitted=l==='compact'&&values.bgOpacity<100;
- w.className='widget '+l+(playing?' playing':'')+(hasCover?' has-cover':'')+(fitted?' fitted':'')+(hasCover&&values.bgOpacity===100?' strong-cover':'');
+ w.className='widget '+l+(playing?' playing':'')+(hasCover?' has-cover':'')+(hasCover&&l==='compact'?' strong-cover':'');
  w.style.width=values.w+'px';w.style.height=values.h+'px';
  for(const [k,v] of Object.entries(palette()))w.style.setProperty('--'+k,v);
  for(const [k,v] of Object.entries(values)){const out=$('out-'+k);if(out)out.value=v+' '+out.parentElement.dataset.unit;w.style.setProperty('--'+k,v+'px')}
- w.style.setProperty('--artRadius',values.artRadiusPct+'%');w.style.setProperty('--bgOpacity',values.bgOpacity/100);w.style.setProperty('--coverOpacity',values.coverOpacity/100);w.style.setProperty('--scrim',values.scrim/100);
+ w.style.setProperty('--artRadius',values.artRadiusPct+'%');w.style.setProperty('--bgOpacity',l==='compact'?1:values.bgOpacity/100);w.style.setProperty('--coverOpacity',values.coverOpacity/100);w.style.setProperty('--scrim',values.scrim/100);
  w.innerHTML='<div class="art"></div><div class="details"><div class="text"><div class="title"></div><div class="artist"></div></div><div class="controls"><button class="prev" aria-label="Previous">'+icon('prev')+'</button><button class="play" aria-label="'+(playing?'Pause':'Play')+'">'+icon(playing?'pause':'play')+'</button><button class="next" aria-label="Next">'+icon('next')+'</button></div></div>';
- const art=w.querySelector('.art');const side=l==='wide'?Math.max(0,Math.min(values.coverMax,values.h-2*values.padding,values.w-2*values.padding-values.wideGap-2*values.side-64-2*values.gap)):(l==='tall'||fitted)?Math.max(0,Math.min(art.clientWidth,art.clientHeight)):Math.min(values.w,values.h);
- if(hasCover){const img=document.createElement('img');img.alt='Album artwork';img.className='cover';img.src=coverUrl||sampleUrl;if(l!=='compact'||fitted){img.style.width=side+'px';img.style.height=side+'px'}art.append(img)}
- else{const ph=document.createElement('div');ph.className='placeholder';if(l!=='compact'||fitted){ph.style.width=side+'px';ph.style.height=side+'px'}ph.innerHTML=icon('music');art.append(ph)}
+ const art=w.querySelector('.art');const side=l==='wide'?Math.max(0,Math.min(values.coverMax,values.h-2*values.padding,values.w-2*values.padding-values.wideGap-2*values.side-64-2*values.gap)):l==='tall'?Math.max(0,Math.min(art.clientWidth,art.clientHeight)):Math.min(values.w,values.h);
+ if(hasCover){const img=document.createElement('img');img.alt='Album artwork';img.className='cover';img.src=coverUrl||sampleUrl;if(l!=='compact'){img.style.width=side+'px';img.style.height=side+'px'}art.append(img)}
+ else{const ph=document.createElement('div');ph.className='placeholder';if(l!=='compact'){ph.style.width=side+'px';ph.style.height=side+'px'}ph.innerHTML=icon('music');art.append(ph)}
  w.querySelector('.title').textContent=$('title').value||'Mornye';
  const artist=w.querySelector('.artist');artist.textContent=active?$('artist').value:'Không có bài hát';artist.hidden=!$('showArtist').checked;
  w.querySelector('.play').disabled=!active;w.querySelector('.prev').disabled=!active||!$('canPrevious').checked;w.querySelector('.next').disabled=!active||!$('canNext').checked;
@@ -147,7 +145,7 @@ function render(){
  const stage=$('stage'),wall=$('wallpaper').value;stage.className='stage '+wall;stage.style.backgroundImage=wall==='custom'&&wallpaperUrl?'url("'+wallpaperUrl+'")':'';
  $('layoutLabel').textContent='Layout: '+l+' · widget_player'+(l==='tall'?'':'_'+l)+'.xml';
  $('sizeLabel').textContent=values.w+' × '+values.h+' dp (mô phỏng)';
- lastExport={layout:l,theme:$('theme').value,seed:$('seed').value,...values,backgroundAlpha:Math.round(values.bgOpacity*255/100),showArtist:$('showArtist').checked,showCover:hasCover};
+ lastExport={layout:l,theme:$('theme').value,seed:$('seed').value,...values,backgroundAlpha:l==='compact'?255:Math.round(values.bgOpacity*255/100),showArtist:$('showArtist').checked,showCover:hasCover};
  $('summary').textContent=JSON.stringify(lastExport,null,2);
 }
 $('preset').onchange=()=>{const p=$('preset').value;if(p==='custom')return;[values.w,values.h]=presets[p];currentLayout=p;Object.assign(values,original[p]);sync();render()};

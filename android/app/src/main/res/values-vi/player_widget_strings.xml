@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="player_widget_background_opacity">Độ đục nền</string>
+    <string name="player_widget_background_opacity">Độ đục nền (Wide / Tall)</string>
     <string name="player_widget_opacity_value">%1$d%%</string>
 </resources>
