@@ -168,38 +168,45 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             // shorter sizes without that width use the full-bleed cover.
             val wide = width >= 340 && height < 240
             val compact = !wide && (width < 200 || height < 240)
+            val opacity = backgroundOpacity.coerceIn(0, 100)
+            // A translucent Compact needs separate artwork, otherwise a
+            // full-bleed opaque cover would hide the wallpaper.
+            val fittedCompact = compact && opacity < 100
             val layout = when {
                 wide -> R.layout.widget_player_wide
+                fittedCompact -> R.layout.widget_player_compact_transparent
                 compact -> R.layout.widget_player_compact
                 else -> R.layout.widget_player
             }
             val views = RemoteViews(context.packageName, layout)
             val colors = palette(context, theme, seed(state))
             views.setInt(R.id.player_widget_background, "setColorFilter", colors.container)
-            val opacity = backgroundOpacity.coerceIn(0, 100)
             val alpha = (opacity * 255 + 50) / 100
-            // Compact composites its background, artwork and scrim in one
-            // bitmap so the opacity is applied once rather than to two layers.
-            val fullBleedArtwork = compact && cover != null
+            // At 100% opacity retain the original full-bleed artwork.
+            // For all other values, opacity applies only to the background.
+            val fullBleedArtwork = compact && !fittedCompact && cover != null
             views.setInt(R.id.player_widget_background, "setImageAlpha", if (fullBleedArtwork) 0 else alpha)
             views.setTextViewText(R.id.player_widget_title, state.optString("title").ifEmpty { context.getString(R.string.player_widget_name) })
             views.setTextViewText(R.id.player_widget_artist, if (active) state.optString("artist") else context.getString(R.string.player_widget_empty))
             views.setViewVisibility(R.id.player_widget_artist, if (showArtist) View.VISIBLE else View.GONE)
             // Over a full-bleed cover the text sits on a dark scrim.
-            val overCover = fullBleedArtwork && opacity >= 50
+            val overCover = fullBleedArtwork
             views.setTextColor(R.id.player_widget_title, if (overCover) Color.WHITE else colors.onContainer)
             views.setTextColor(R.id.player_widget_artist, if (overCover) 0xd9ffffff.toInt() else colors.onContainerVariant)
             // Wide art is at most 136dp; tall art cannot exceed the padded
             // content area. Work in physical pixels, not a fixed 384px square.
-            val coverDp = if (wide) minOf(136, width - 24, height - 24)
-                else minOf(width - 28, height - 28)
+            val coverDp = when {
+                wide -> minOf(136, width - 24, height - 24)
+                fittedCompact -> minOf(width - 16, height - 74)
+                else -> minOf(width - 28, height - 28)
+            }
             val (maxSide, _) = bitmapSize(context, coverDp, coverDp)
             views.setImageViewBitmap(R.id.player_widget_art, when {
-                compact -> filledCover(context, cover, width, height, density, corner, colors)
+                compact && !fittedCompact -> filledCover(context, cover, width, height, density, corner, colors)
                 cover != null -> roundedCover(context, cover, maxSide)
                 else -> placeholder(context, colors, maxSide)
             })
-            views.setInt(R.id.player_widget_art, "setImageAlpha", if (fullBleedArtwork) alpha else 255)
+            views.setInt(R.id.player_widget_art, "setImageAlpha", 255)
 
             fun bind(root: Int, shape: Int, icon: Int, iconRes: Int, fill: Int, tint: Int, command: String) {
                 val enabled = active && when (command) {
