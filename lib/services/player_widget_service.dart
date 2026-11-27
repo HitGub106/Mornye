@@ -186,11 +186,12 @@ class PlayerWidgetService {
       'canNext': state.controls.any(
         (control) => control.action == MediaAction.skipToNext,
       ),
-      // Invalidate the old Android 256px artwork cache after upgrading.
+      // Version the Android cache key so a previously cached 256px cover is
+      // replaced on the first publication after upgrading.
       'artworkKey': _artwork == null
           ? ''
           : Platform.isAndroid
-          ? 'android-hq-v3:$_artUri'
+          ? 'android-hq-v2:$_artUri'
           : _artUri.toString(),
       'background': _artwork?.background ?? 0xff292433,
     };
@@ -268,6 +269,8 @@ class PlayerWidgetService {
       return null;
     }
     final bytes = await file.readAsBytes();
+    // Keep the existing iOS payload size; Android renders each widget at its
+    // own physical size. Bound the long edge without stretching or upscaling.
     final codec = Platform.isAndroid
         ? await ui.instantiateImageCodecWithSize(
             await ui.ImmutableBuffer.fromUint8List(bytes),

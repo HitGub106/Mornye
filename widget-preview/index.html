@@ -24,7 +24,7 @@ button{cursor:pointer;font:inherit;color:inherit}button:focus-visible,input:focu
 .widget{position:relative;overflow:hidden;flex:none;border-radius:var(--radius);color:var(--on);font:500 14px/1.2 Roboto,Arial,sans-serif;isolation:isolate}
 .widget:before{content:"";position:absolute;inset:0;background:var(--container);opacity:var(--bgOpacity);z-index:-1;pointer-events:none}
 .art{min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.cover{display:block;object-fit:fill;aspect-ratio:1;border-radius:var(--artRadius);max-width:100%;max-height:100%}
+.cover{display:block;object-fit:contain;aspect-ratio:1;border-radius:var(--artRadius);max-width:100%;max-height:100%}
 .placeholder{display:grid;place-items:center;aspect-ratio:1;background:var(--tonal);color:var(--onTonal);border-radius:var(--artRadius);max-width:100%;max-height:100%}.placeholder svg{width:31.25%;height:31.25%;fill:currentColor}
 .details,.text{min-width:0}.title,.artist{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.title{font-size:var(--titleSize);font-weight:700;letter-spacing:-.01em}.artist{font-size:var(--artistSize);color:var(--muted);margin-top:2px}
 .controls{display:flex;align-items:center;gap:var(--gap);height:var(--controlHeight);margin-top:var(--controlTop);min-width:0}
@@ -33,11 +33,11 @@ button{cursor:pointer;font:inherit;color:inherit}button:focus-visible,input:focu
 .widget.playing button.play{border-radius:var(--playRadius)}.controls button:disabled{opacity:.38;cursor:default}
 .wide{display:flex;align-items:center;padding:var(--padding);gap:var(--wideGap)}.wide .art{height:100%;width:min(var(--coverMax),calc(var(--h) - 2 * var(--padding)));flex:none}.wide .details{flex:1}
 .tall{display:flex;flex-direction:column;padding:var(--padding)}.tall .art{flex:1}.tall .details{margin-top:var(--titleTop)}
-.compact .art{position:absolute;inset:0;opacity:var(--coverOpacity)}.compact .cover{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:0}
+.compact .art{position:absolute;inset:0;opacity:var(--coverOpacity)}.compact.has-cover:before{opacity:0}.compact.has-cover .art{background:var(--container);opacity:calc(var(--coverOpacity) * var(--bgOpacity))}.compact .cover{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:0}
 .compact.has-cover .art:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 35%,rgb(0 0 0 / var(--scrim)))}
 .compact .placeholder{width:34%;background:none;transform:translateY(-35%);color:var(--muted)}.compact .placeholder svg{width:100%;height:100%}
 .compact .details{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;gap:var(--gap);padding:var(--padding)}.compact .text{flex:1}
-.compact.has-cover .title{color:white}.compact.has-cover .artist{color:#ffffffd9}
+.compact.strong-cover .title{color:white}.compact.strong-cover .artist{color:#ffffffd9}
 .compact .controls{margin:0;height:var(--controlHeight);width:var(--controlHeight);flex:none}.compact .controls .prev,.compact .controls .next{display:none}.compact .controls button.play svg{width:26px;height:26px}
 .meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:12px 0;font-size:13px;color:#b6bdc9}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#11141a;padding:12px;border-radius:8px;color:#c6d3ea;font-size:12px}
@@ -121,14 +121,14 @@ function slider(parent,key,label,min,max,unit='dp'){
  });el.dataset.unit=unit;
 }
 slider('dimensions','w','Chiều rộng',140,460);slider('dimensions','h','Chiều cao',100,400);
-slider('opacityControls','bgOpacity','Độ đục nền',0,100,'%');slider('opacityControls','coverOpacity','Độ đục ảnh nền Compact',0,100,'%');slider('opacityControls','scrim','Độ đậm gradient Compact',0,100,'%');
+slider('opacityControls','bgOpacity','Độ đục nền',0,100,'%');slider('opacityControls','coverOpacity','Độ đục ảnh Compact (thử thêm)',0,100,'%');slider('opacityControls','scrim','Độ đậm gradient Compact',0,100,'%');
 for(const a of [['radius','Bo góc widget',0,48],['artRadiusPct','Bo góc ảnh bìa',0,50,'%'],['padding','Padding',0,28],['titleSize','Cỡ tên bài',10,26,'sp'],['artistSize','Cỡ nghệ sĩ',8,22,'sp'],['gap','Khoảng cách nút',0,20],['controlHeight','Chiều cao nút Play',28,72],['side','Nút Previous / Next',28,64],['playRadius','Bo góc khi phát',0,40],['coverMax','Ảnh bìa Wide tối đa',40,180],['wideGap','Khoảng cách ảnh và chữ',0,30],['titleTop','Khoảng cách ảnh và chữ Tall',0,28],['controlTop','Khoảng cách nút và chữ',0,24]])slider('styleControls',...a);
 function sync(){for(const [k,v] of Object.entries(values)){const el=$('range-'+k);if(el)el.value=v;}}
 function seedHsl(hex){const [r,g,b]=hex.slice(1).match(/../g).map(x=>parseInt(x,16)/255);const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min,l=(max+min)/2;let h=0,s=0;if(d){s=d/(1-Math.abs(2*l-1));h=60*(max===r?((g-b)/d+6)%6:max===g?(b-r)/d+2:(r-g)/d+4)}return[h,s]}
 function palette(){const [h,s]=seedHsl($('seed').value);const tone=(sat,l)=>'hsl('+h+' '+(sat*100)+'% '+(l*100)+'%)';const m=n=>Math.min(s,n),cl=(a,b)=>Math.max(a,Math.min(s,b));return $('theme').value==='light'?{container:tone(m(.4),.96),on:tone(m(.2),.11),muted:tone(m(.15),.32),primary:tone(cl(.3,.6),.42),onPrimary:'#fff',tonal:tone(m(.45),.88),onTonal:tone(m(.4),.14)}:{container:tone(m(.42),.15),on:tone(m(.12),.95),muted:tone(m(.18),.76),primary:tone(cl(.35,.75),.8),onPrimary:tone(m(.5),.16),tonal:tone(m(.38),.26),onTonal:tone(m(.3),.9)}}
 function render(){
  const w=$('widget'),l=layout(),active=$('active').checked,playing=$('playing').checked,hasCover=$('showCover').checked;
- w.className='widget '+l+(playing?' playing':'')+(hasCover?' has-cover':'');
+ w.className='widget '+l+(playing?' playing':'')+(hasCover?' has-cover':'')+(hasCover&&values.bgOpacity>=50?' strong-cover':'');
  w.style.width=values.w+'px';w.style.height=values.h+'px';
  for(const [k,v] of Object.entries(palette()))w.style.setProperty('--'+k,v);
  for(const [k,v] of Object.entries(values)){const out=$('out-'+k);if(out)out.value=v+' '+out.parentElement.dataset.unit;w.style.setProperty('--'+k,v+'px')}

@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -16,6 +15,7 @@ import android.view.WindowInsets
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 import org.json.JSONObject
@@ -25,10 +25,12 @@ class PlayerWidgetConfigurationActivity : Activity() {
     private var widgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var theme = "artwork"
     private var showArtist = true
+    private var backgroundOpacity = 100
     private var cover: Bitmap? = null
     private lateinit var state: JSONObject
     private lateinit var sheet: View
     private lateinit var preview: FrameLayout
+    private val opacityPreview = Runnable { refresh() }
     private val tiles = mutableListOf<Pair<String, LinearLayout>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,6 +41,7 @@ class PlayerWidgetConfigurationActivity : Activity() {
         val prefs = PlayerWidgetProvider.preferences(this)
         theme = prefs.getString("theme_$widgetId", "artwork") ?: "artwork"
         showArtist = prefs.getBoolean("artist_$widgetId", true)
+        backgroundOpacity = prefs.getInt("opacity_$widgetId", 100).coerceIn(0, 100)
         state = PlayerWidgetProvider.state(this)
         cover = PlayerWidgetProvider.cover(this, state)
 
@@ -62,14 +65,34 @@ class PlayerWidgetConfigurationActivity : Activity() {
             "artwork" to R.string.player_widget_artwork,
             "light" to R.string.player_widget_light,
             "dark" to R.string.player_widget_dark,
-            "transparent" to R.string.player_widget_transparent,
         ).forEachIndexed { index, (key, label) ->
             val tile = themeTile(key, getString(label))
             themes.addView(tile, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                if (index > 0) marginStart = dp(8)
+                if (index > 0) marginStart = dp(12)
             })
             tiles += key to tile
         }
+
+        val opacity = findViewById<SeekBar>(R.id.config_opacity)
+        val opacityValue = findViewById<TextView>(R.id.config_opacity_value)
+        opacity.progress = backgroundOpacity
+        opacityValue.text = getString(R.string.player_widget_opacity_value, backgroundOpacity)
+        opacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                backgroundOpacity = progress
+                opacityValue.text = getString(R.string.player_widget_opacity_value, progress)
+                // Coalesce rendering during a drag to avoid repeatedly allocating artwork.
+                if (fromUser) {
+                    preview.removeCallbacks(opacityPreview)
+                    preview.postDelayed(opacityPreview, 48)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                preview.removeCallbacks(opacityPreview)
+                refresh()
+            }
+        })
 
         val artist = findViewById<Switch>(R.id.config_artist)
         artist.isChecked = showArtist
@@ -77,7 +100,8 @@ class PlayerWidgetConfigurationActivity : Activity() {
         findViewById<View>(R.id.config_artist_row).setOnClickListener { artist.toggle() }
 
         findViewById<View>(R.id.config_save).setOnClickListener {
-            prefs.edit().putString("theme_$widgetId", theme).putBoolean("artist_$widgetId", showArtist).apply()
+            prefs.edit().putString("theme_$widgetId", theme).putBoolean("artist_$widgetId", showArtist)
+                .putInt("opacity_$widgetId", backgroundOpacity).apply()
             PlayerWidgetProvider.update(this, intArrayOf(widgetId))
             setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
             finish()
@@ -95,6 +119,7 @@ class PlayerWidgetConfigurationActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (::preview.isInitialized) preview.removeCallbacks(opacityPreview)
         cover?.recycle()
         cover = null
         super.onDestroy()
@@ -102,11 +127,10 @@ class PlayerWidgetConfigurationActivity : Activity() {
 
     private fun refresh() {
         val width = (resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 48
-        val views = PlayerWidgetProvider.render(this, state, cover, theme, showArtist, width, 148)
-        // Give the transparent preview a sample wallpaper so its white
-        // artwork-palette text stays legible on the settings sheet.
-        preview.background = if (theme == "transparent") GradientDrawable().apply {
-            setColor(0xff535963.toInt())
+        val views = PlayerWidgetProvider.render(this, state, cover, theme, showArtist, width, 148, backgroundOpacity)
+        // A neutral sample backdrop makes partial/zero opacity visible in the sheet.
+        preview.background = if (backgroundOpacity < 100) GradientDrawable().apply {
+            setColor(0xff777777.toInt())
             cornerRadius = dp(28).toFloat()
         } else null
         preview.removeAllViews()
@@ -120,17 +144,16 @@ class PlayerWidgetConfigurationActivity : Activity() {
         val swatch = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(4), 0, dp(4), 0)
-            addView(block(colors.tonal, 20, 20, 6), LinearLayout.LayoutParams(dp(20), dp(20)))
+            setPadding(dp(12), 0, dp(12), 0)
+            addView(block(colors.tonal, 28, 28, 8), LinearLayout.LayoutParams(dp(28), dp(28)))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                val textColor = if (key == "transparent") getColor(R.color.widgetTextSecondary) else colors.onContainer
-                addView(block(textColor, 24, 5, 3), LinearLayout.LayoutParams(dp(24), dp(5)))
-                addView(block(colors.primary, 18, 10, 5), LinearLayout.LayoutParams(dp(18), dp(10)).apply { topMargin = dp(5) })
+                addView(block(colors.onContainer, 36, 6, 3), LinearLayout.LayoutParams(dp(36), dp(6)))
+                addView(block(colors.primary, 24, 12, 6), LinearLayout.LayoutParams(dp(24), dp(12)).apply { topMargin = dp(6) })
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                marginStart = dp(4)
+                marginStart = dp(8)
             })
-            tag = if (key == "transparent") Color.TRANSPARENT else colors.container
+            tag = colors.container
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

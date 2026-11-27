@@ -14,6 +14,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Matrix
 import android.graphics.Shader
 import android.os.Bundle
 import android.os.Build
@@ -67,7 +69,7 @@ class PlayerWidgetProvider : AppWidgetProvider() {
 
     override fun onDeleted(context: Context, ids: IntArray) {
         val editor = preferences(context).edit()
-        ids.forEach { editor.remove("theme_$it").remove("artist_$it") }
+        ids.forEach { editor.remove("theme_$it").remove("artist_$it").remove("opacity_$it") }
         editor.apply()
         val count = AppWidgetManager.getInstance(context)
             .getAppWidgetIds(ComponentName(context, PlayerWidgetProvider::class.java))
@@ -138,7 +140,7 @@ class PlayerWidgetProvider : AppWidgetProvider() {
                 val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
                 manager.updateAppWidget(id, render(
                     context, state, cover, prefs.getString("theme_$id", "artwork"),
-                    prefs.getBoolean("artist_$id", true), width, height,
+                    prefs.getBoolean("artist_$id", true), width, height, prefs.getInt("opacity_$id", 100),
                 ))
             }
             cover?.recycle()
@@ -154,7 +156,7 @@ class PlayerWidgetProvider : AppWidgetProvider() {
         /** Builds one widget instance; the configuration screen reuses it as a live preview. */
         fun render(
             context: Context, state: JSONObject, cover: Bitmap?, theme: String?,
-            showArtist: Boolean, width: Int, height: Int,
+            showArtist: Boolean, width: Int, height: Int, backgroundOpacity: Int = 100,
         ): RemoteViews {
             val active = state.optBoolean("canPlay")
             val playing = state.optBoolean("playing")
@@ -166,45 +168,38 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             // shorter sizes without that width use the full-bleed cover.
             val wide = width >= 340 && height < 240
             val compact = !wide && (width < 200 || height < 240)
-            val transparent = theme == "transparent"
             val layout = when {
                 wide -> R.layout.widget_player_wide
-                compact && transparent -> R.layout.widget_player_compact_transparent
                 compact -> R.layout.widget_player_compact
                 else -> R.layout.widget_player
             }
             val views = RemoteViews(context.packageName, layout)
             val colors = palette(context, theme, seed(state))
-            // Transparent uses the existing artwork palette, but hides the
-            // background image rather than changing drawable tint or alpha.
-            views.setViewVisibility(R.id.player_widget_background, if (transparent) View.GONE else View.VISIBLE)
-            if (!transparent) {
-                views.setInt(R.id.player_widget_background, "setColorFilter", colors.container)
-            }
+            views.setInt(R.id.player_widget_background, "setColorFilter", colors.container)
+            val opacity = backgroundOpacity.coerceIn(0, 100)
+            val alpha = (opacity * 255 + 50) / 100
+            // Compact composites its background, artwork and scrim in one
+            // bitmap so the opacity is applied once rather than to two layers.
+            val fullBleedArtwork = compact && cover != null
+            views.setInt(R.id.player_widget_background, "setImageAlpha", if (fullBleedArtwork) 0 else alpha)
             views.setTextViewText(R.id.player_widget_title, state.optString("title").ifEmpty { context.getString(R.string.player_widget_name) })
             views.setTextViewText(R.id.player_widget_artist, if (active) state.optString("artist") else context.getString(R.string.player_widget_empty))
             views.setViewVisibility(R.id.player_widget_artist, if (showArtist) View.VISIBLE else View.GONE)
             // Over a full-bleed cover the text sits on a dark scrim.
-            val overCover = compact && cover != null && !transparent
+            val overCover = fullBleedArtwork && opacity >= 50
             views.setTextColor(R.id.player_widget_title, if (overCover) Color.WHITE else colors.onContainer)
             views.setTextColor(R.id.player_widget_artist, if (overCover) 0xd9ffffff.toInt() else colors.onContainerVariant)
-            // Transparent Compact has a separate, fitted cover above its
-            // controls instead of full-bleed artwork behind the text.
-            views.setViewVisibility(R.id.player_widget_art, View.VISIBLE)
+            // Wide art is at most 136dp; tall art cannot exceed the padded
+            // content area. Work in physical pixels, not a fixed 384px square.
+            val coverDp = if (wide) minOf(136, width - 24, height - 24)
+                else minOf(width - 28, height - 28)
+            val (maxSide, _) = bitmapSize(context, coverDp, coverDp)
             views.setImageViewBitmap(R.id.player_widget_art, when {
-                compact && !transparent -> filledCover(context, cover, width, height, density, corner, colors)
-                cover != null -> {
-                    // The fitted album image needs no more pixels than its
-                    // available physical size; leave launcher memory headroom.
-                    val sideDp = when {
-                        wide -> minOf(136, width - 24, height - 24)
-                        compact -> minOf(width - 16, height - 74)
-                        else -> minOf(width - 28, height - 28)
-                    }.coerceAtLeast(1)
-                    roundedCover(cover, (sideDp * density).toInt().coerceIn(1, 768))
-                }
-                else -> placeholder(context, colors)
+                compact -> filledCover(context, cover, width, height, density, corner, colors)
+                cover != null -> roundedCover(context, cover, maxSide)
+                else -> placeholder(context, colors, maxSide)
             })
+            views.setInt(R.id.player_widget_art, "setImageAlpha", if (fullBleedArtwork) alpha else 255)
 
             fun bind(root: Int, shape: Int, icon: Int, iconRes: Int, fill: Int, tint: Int, command: String) {
                 val enabled = active && when (command) {
@@ -305,40 +300,54 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             )
         }
 
-        private fun roundedCover(source: Bitmap, maxSide: Int): Bitmap {
-            // Preserve the source aspect ratio and never enlarge its bitmap.
+        /**
+         * A RemoteViews bitmap must fit the launcher's memory budget. Keep
+         * at most one screen's worth of ARGB pixels, and cap either edge at
+         * 1024px. The normal device density is otherwise preserved.
+         */
+        private fun bitmapSize(context: Context, widthDp: Int, heightDp: Int): Pair<Int, Int> {
+            val metrics = context.resources.displayMetrics
+            val w = widthDp.coerceAtLeast(1) * metrics.density.toDouble()
+            val h = heightDp.coerceAtLeast(1) * metrics.density.toDouble()
+            val screenPixels = (metrics.widthPixels.toLong() * metrics.heightPixels).coerceAtLeast(1L)
+            val scale = minOf(1.0, 1024.0 / maxOf(w, h), kotlin.math.sqrt(screenPixels / (w * h)))
+            return (w * scale).toInt().coerceAtLeast(1) to (h * scale).toInt().coerceAtLeast(1)
+        }
+
+        private fun widgetBitmap(context: Context, w: Int, h: Int): Bitmap =
+            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply {
+                density = context.resources.displayMetrics.densityDpi
+            }
+
+        private fun roundedCover(context: Context, source: Bitmap, maxSide: Int): Bitmap {
             val scale = minOf(1f, maxSide.toFloat() / maxOf(source.width, source.height))
             val w = (source.width * scale).toInt().coerceAtLeast(1)
             val h = (source.height * scale).toInt().coerceAtLeast(1)
-            val scaled = Bitmap.createScaledBitmap(source, w, h, true)
-            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            // Expressive covers use large corners: about a fifth of the side.
+            val result = widgetBitmap(context, w, h)
             val radius = minOf(w, h) * 0.2f
-            Canvas(result).drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), radius, radius, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-                shader = BitmapShader(scaled, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-            })
-            if (scaled !== source) scaled.recycle()
+            val matrix = Matrix().apply {
+                setScale(w.toFloat() / source.width, h.toFloat() / source.height)
+            }
+            Canvas(result).drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), radius, radius,
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                    shader = BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+                        setLocalMatrix(matrix)
+                    }
+                })
             return result
         }
 
-        /** The compact widget's cover fills it edge to edge under a bottom scrim. */
+        /** Full-bleed center crop when the source has enough pixels; otherwise
+         * center the original without enlarging it. The composite fades as one. */
         private fun filledCover(
             context: Context, source: Bitmap?, width: Int, height: Int,
             density: Float, corner: Float, colors: Palette,
         ): Bitmap {
-            // Preserve full-bleed Compact's original crop and scrim. Render
-            // at device density up to 768px, without enlarging source pixels.
-            val maxSide = if (source == null) 512f else 768f
-            val sourceScale = if (source == null) Float.MAX_VALUE else minOf(
-                source.width / width.coerceAtLeast(1).toFloat(),
-                source.height / height.coerceAtLeast(1).toFloat(),
-            )
-            val scale = minOf(density, maxSide / maxOf(width, height, 1), sourceScale)
-            val w = (width * scale).toInt().coerceAtLeast(1)
-            val h = (height * scale).toInt().coerceAtLeast(1)
-            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val (w, h) = bitmapSize(context, width, height)
+            val result = widgetBitmap(context, w, h)
             val canvas = Canvas(result)
-            val radius = corner * scale / density
+            val scale = minOf(w.toFloat() / width.coerceAtLeast(1), h.toFloat() / height.coerceAtLeast(1))
+            val radius = minOf(corner * scale / density, minOf(w, h) / 2f)
             if (source == null) {
                 val icon = context.getDrawable(R.drawable.ic_widget_music)!!.mutate()
                 icon.setTint(colors.onContainerVariant)
@@ -349,32 +358,40 @@ class PlayerWidgetProvider : AppWidgetProvider() {
                 icon.draw(canvas)
                 return result
             }
-            val crop = minOf(source.width / w.toFloat(), source.height / h.toFloat())
-            val sw = w * crop
-            val sh = h * crop
-            val matrix = android.graphics.Matrix().apply {
-                setScale(1 / crop, 1 / crop)
-                preTranslate(-(source.width - sw) / 2, -(source.height - sh) / 2)
+            // Fill the palette background first so low-resolution artwork
+            // leaves intentional space instead of stretched, blurry pixels.
+            canvas.drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), radius, radius,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.container })
+            val imageScale = minOf(1f, maxOf(w.toFloat() / source.width, h.toFloat() / source.height))
+            val sw = source.width * imageScale
+            val sh = source.height * imageScale
+            val left = (w - sw) / 2f
+            val top = (h - sh) / 2f
+            val rect = RectF(maxOf(0f, left), maxOf(0f, top), minOf(w.toFloat(), left + sw), minOf(h.toFloat(), top + sh))
+            val imageRadius = minOf(radius, rect.width() / 2f, rect.height() / 2f)
+            val matrix = Matrix().apply {
+                setScale(imageScale, imageScale)
+                postTranslate(left, top)
             }
             val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
                 shader = BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply { setLocalMatrix(matrix) }
             }
-            canvas.drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), radius, radius, paint)
+            canvas.drawRoundRect(rect, imageRadius, imageRadius, paint)
             canvas.drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(0f, h * 0.35f, 0f, h.toFloat(), Color.TRANSPARENT, 0xcc000000.toInt(), Shader.TileMode.CLAMP)
             })
             return result
         }
 
-        private fun placeholder(context: Context, colors: Palette): Bitmap {
-            val size = 384
-            val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        private fun placeholder(context: Context, colors: Palette, size: Int): Bitmap {
+            val result = widgetBitmap(context, size, size)
             val canvas = Canvas(result)
             val radius = size * 0.2f
             canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.tonal })
             val icon = context.getDrawable(R.drawable.ic_widget_music)!!.mutate()
             icon.setTint(colors.onTonal)
-            icon.setBounds(132, 132, 252, 252)
+            val inset = (size * 0.34375f).toInt()
+            icon.setBounds(inset, inset, size - inset, size - inset)
             icon.draw(canvas)
             return result
         }
