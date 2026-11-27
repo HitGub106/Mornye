@@ -173,19 +173,31 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             }
             val views = RemoteViews(context.packageName, layout)
             val colors = palette(context, theme, seed(state))
-            views.setInt(R.id.player_widget_background, "setColorFilter", colors.container)
+            // Transparent uses the existing artwork palette, but hides the
+            // background image rather than changing drawable tint or alpha.
+            val transparent = theme == "transparent"
+            views.setViewVisibility(R.id.player_widget_background, if (transparent) View.GONE else View.VISIBLE)
+            if (!transparent) {
+                views.setInt(R.id.player_widget_background, "setColorFilter", colors.container)
+            }
             views.setTextViewText(R.id.player_widget_title, state.optString("title").ifEmpty { context.getString(R.string.player_widget_name) })
             views.setTextViewText(R.id.player_widget_artist, if (active) state.optString("artist") else context.getString(R.string.player_widget_empty))
             views.setViewVisibility(R.id.player_widget_artist, if (showArtist) View.VISIBLE else View.GONE)
             // Over a full-bleed cover the text sits on a dark scrim.
-            val overCover = compact && cover != null
+            val overCover = compact && cover != null && !transparent
             views.setTextColor(R.id.player_widget_title, if (overCover) Color.WHITE else colors.onContainer)
             views.setTextColor(R.id.player_widget_artist, if (overCover) 0xd9ffffff.toInt() else colors.onContainerVariant)
-            views.setImageViewBitmap(R.id.player_widget_art, when {
-                compact -> filledCover(context, cover, width, height, density, corner, colors)
-                cover != null -> roundedCover(cover)
-                else -> placeholder(context, colors)
-            })
+            // Compact artwork is itself a full-bleed background. Hide only
+            // that layer in Transparent; Wide and Tall keep the album cover.
+            val hideArtwork = compact && transparent
+            views.setViewVisibility(R.id.player_widget_art, if (hideArtwork) View.INVISIBLE else View.VISIBLE)
+            if (!hideArtwork) {
+                views.setImageViewBitmap(R.id.player_widget_art, when {
+                    compact -> filledCover(context, cover, width, height, density, corner, colors)
+                    cover != null -> roundedCover(cover)
+                    else -> placeholder(context, colors)
+                })
+            }
 
             fun bind(root: Int, shape: Int, icon: Int, iconRes: Int, fill: Int, tint: Int, command: String) {
                 val enabled = active && when (command) {

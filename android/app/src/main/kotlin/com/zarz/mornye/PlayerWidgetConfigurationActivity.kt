@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -61,10 +62,11 @@ class PlayerWidgetConfigurationActivity : Activity() {
             "artwork" to R.string.player_widget_artwork,
             "light" to R.string.player_widget_light,
             "dark" to R.string.player_widget_dark,
+            "transparent" to R.string.player_widget_transparent,
         ).forEachIndexed { index, (key, label) ->
             val tile = themeTile(key, getString(label))
             themes.addView(tile, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                if (index > 0) marginStart = dp(12)
+                if (index > 0) marginStart = dp(8)
             })
             tiles += key to tile
         }
@@ -101,6 +103,12 @@ class PlayerWidgetConfigurationActivity : Activity() {
     private fun refresh() {
         val width = (resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 48
         val views = PlayerWidgetProvider.render(this, state, cover, theme, showArtist, width, 148)
+        // Give the transparent preview a sample wallpaper so its white
+        // artwork-palette text stays legible on the settings sheet.
+        preview.background = if (theme == "transparent") GradientDrawable().apply {
+            setColor(0xff535963.toInt())
+            cornerRadius = dp(28).toFloat()
+        } else null
         preview.removeAllViews()
         preview.addView(InertFrame(this).apply { addView(views.apply(this@PlayerWidgetConfigurationActivity, this)) })
         for ((key, tile) in tiles) select(tile, key == theme)
@@ -112,16 +120,17 @@ class PlayerWidgetConfigurationActivity : Activity() {
         val swatch = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(12), 0, dp(12), 0)
-            addView(block(colors.tonal, 28, 28, 8), LinearLayout.LayoutParams(dp(28), dp(28)))
+            setPadding(dp(4), 0, dp(4), 0)
+            addView(block(colors.tonal, 20, 20, 6), LinearLayout.LayoutParams(dp(20), dp(20)))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(block(colors.onContainer, 36, 6, 3), LinearLayout.LayoutParams(dp(36), dp(6)))
-                addView(block(colors.primary, 24, 12, 6), LinearLayout.LayoutParams(dp(24), dp(12)).apply { topMargin = dp(6) })
+                val textColor = if (key == "transparent") getColor(R.color.widgetTextSecondary) else colors.onContainer
+                addView(block(textColor, 24, 5, 3), LinearLayout.LayoutParams(dp(24), dp(5)))
+                addView(block(colors.primary, 18, 10, 5), LinearLayout.LayoutParams(dp(18), dp(10)).apply { topMargin = dp(5) })
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                marginStart = dp(8)
+                marginStart = dp(4)
             })
-            tag = colors.container
+            tag = if (key == "transparent") Color.TRANSPARENT else colors.container
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

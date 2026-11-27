@@ -9,6 +9,7 @@
     <string name="player_widget_artwork">Warna artwork</string>
     <string name="player_widget_light">Terang</string>
     <string name="player_widget_dark">Gelap</string>
+    <string name="player_widget_transparent">Transparan</string>
     <string name="player_widget_show_artist">Tampilkan nama artis</string>
     <string name="player_widget_save">Simpan widget</string>
     <string name="player_widget_customize">Pilih tampilan widget ini di layar utama.</string>
