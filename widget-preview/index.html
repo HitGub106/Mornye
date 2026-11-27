@@ -31,7 +31,7 @@ button{cursor:pointer;font:inherit;color:inherit}button:focus-visible,input:focu
 .controls button{padding:0;border:0;display:grid;place-items:center;background:var(--tonal);color:var(--onTonal);width:var(--side);height:var(--side);border-radius:50%;flex:none}
 .controls button svg{width:24px;height:24px;fill:currentColor}.controls button.play{flex:1;min-width:0;width:auto;height:100%;border-radius:999px;background:var(--primary);color:var(--onPrimary)}.controls button.play svg{width:28px;height:28px}
 .widget.playing button.play{border-radius:var(--playRadius)}.controls button:disabled{opacity:.38;cursor:default}
-.wide{display:flex;align-items:center;padding:var(--padding);gap:var(--wideGap)}.wide .art{height:100%;width:max(0px,min(var(--coverMax),calc(var(--h) - 2 * var(--padding)),calc(var(--w) - 2 * var(--padding) - var(--wideGap) - 2 * var(--side) - 64px - 2 * var(--gap))));flex:none}.wide .details{flex:1}.wide .controls{justify-content:space-between}.wide .controls button.play{flex:none;width:64px}
+.wide{display:flex;align-items:center;padding:var(--padding);gap:var(--wideGap)}.wide .art{height:100%;width:max(0px,min(var(--coverMax),calc(var(--h) - 2 * var(--padding)),calc(var(--w) - 2 * var(--padding) - var(--wideGap) - 2 * var(--side) - 64px - 2 * var(--gap))));flex:none}.wide .details{flex:1}.wide .controls,.tall .controls{justify-content:space-between}.wide .controls button.play,.tall .controls button.play{flex:none;width:64px}
 .tall{display:flex;flex-direction:column;padding:var(--padding)}.tall .art{flex:1}.tall .details{margin-top:var(--titleTop)}
 .compact .art{position:absolute;inset:0;opacity:1}.compact:before{opacity:1}.compact.has-cover .art{background:var(--container)}.compact .cover{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:0}
 .compact.has-cover .art:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 35%,rgb(0 0 0 / var(--scrim)))}
@@ -95,7 +95,7 @@ const presets={wide:[360,160],compact:[180,180],tall:[280,320]};
 const original={
  wide:{padding:6,titleSize:18,artistSize:14,controlHeight:48,side:48,coverMax:180,wideGap:8,titleTop:12,controlTop:10},
  compact:{padding:12,titleSize:15,artistSize:12,controlHeight:52,side:48,coverMax:136,wideGap:16,titleTop:12,controlTop:10},
- tall:{padding:14,titleSize:18,artistSize:14,controlHeight:56,side:48,coverMax:136,wideGap:16,titleTop:12,controlTop:10}
+ tall:{padding:14,titleSize:18,artistSize:14,controlHeight:56,side:48,coverMax:136,wideGap:16,titleTop:12,controlTop:10,gap:6}
 };
 const common={radius:28,artRadiusPct:20,playRadius:18,gap:8,bgOpacity:100,coverOpacity:100,scrim:80};
 const values={...common,...original.wide,w:360,h:160};
