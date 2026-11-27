@@ -196,7 +196,8 @@ class PlayerWidgetProvider : AppWidgetProvider() {
             // Wide art is at most 136dp; tall art cannot exceed the padded
             // content area. Work in physical pixels, not a fixed 384px square.
             val coverDp = when {
-                wide -> minOf(136, width - 24, height - 24)
+                // 12dp outer padding + 8dp gap + 160dp for the three controls.
+                wide -> minOf(180, width - 180, height - 12)
                 fittedCompact -> minOf(width - 16, height - 74)
                 else -> minOf(width - 28, height - 28)
             }
