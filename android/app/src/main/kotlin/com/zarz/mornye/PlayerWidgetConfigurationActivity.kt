@@ -15,6 +15,7 @@ import android.view.WindowInsets
 import android.view.animation.PathInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 import org.json.JSONObject
@@ -24,10 +25,12 @@ class PlayerWidgetConfigurationActivity : Activity() {
     private var widgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var theme = "artwork"
     private var showArtist = true
+    private var backgroundOpacity = 100
     private var cover: Bitmap? = null
     private lateinit var state: JSONObject
     private lateinit var sheet: View
     private lateinit var preview: FrameLayout
+    private val opacityPreview = Runnable { refresh() }
     private val tiles = mutableListOf<Pair<String, LinearLayout>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +41,7 @@ class PlayerWidgetConfigurationActivity : Activity() {
         val prefs = PlayerWidgetProvider.preferences(this)
         theme = prefs.getString("theme_$widgetId", "artwork") ?: "artwork"
         showArtist = prefs.getBoolean("artist_$widgetId", true)
+        backgroundOpacity = prefs.getInt("opacity_$widgetId", 100).coerceIn(0, 100)
         state = PlayerWidgetProvider.state(this)
         cover = PlayerWidgetProvider.cover(this, state)
 
@@ -69,13 +73,35 @@ class PlayerWidgetConfigurationActivity : Activity() {
             tiles += key to tile
         }
 
+        val opacity = findViewById<SeekBar>(R.id.config_opacity)
+        val opacityValue = findViewById<TextView>(R.id.config_opacity_value)
+        opacity.progress = backgroundOpacity
+        opacityValue.text = getString(R.string.player_widget_opacity_value, backgroundOpacity)
+        opacity.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                backgroundOpacity = progress
+                opacityValue.text = getString(R.string.player_widget_opacity_value, progress)
+                // Coalesce rendering during a drag to avoid repeatedly allocating artwork.
+                if (fromUser) {
+                    preview.removeCallbacks(opacityPreview)
+                    preview.postDelayed(opacityPreview, 48)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                preview.removeCallbacks(opacityPreview)
+                refresh()
+            }
+        })
+
         val artist = findViewById<Switch>(R.id.config_artist)
         artist.isChecked = showArtist
         artist.setOnCheckedChangeListener { _, checked -> showArtist = checked; refresh() }
         findViewById<View>(R.id.config_artist_row).setOnClickListener { artist.toggle() }
 
         findViewById<View>(R.id.config_save).setOnClickListener {
-            prefs.edit().putString("theme_$widgetId", theme).putBoolean("artist_$widgetId", showArtist).apply()
+            prefs.edit().putString("theme_$widgetId", theme).putBoolean("artist_$widgetId", showArtist)
+                .putInt("opacity_$widgetId", backgroundOpacity).apply()
             PlayerWidgetProvider.update(this, intArrayOf(widgetId))
             setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
             finish()
@@ -93,6 +119,7 @@ class PlayerWidgetConfigurationActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (::preview.isInitialized) preview.removeCallbacks(opacityPreview)
         cover?.recycle()
         cover = null
         super.onDestroy()
@@ -100,7 +127,12 @@ class PlayerWidgetConfigurationActivity : Activity() {
 
     private fun refresh() {
         val width = (resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt() - 48
-        val views = PlayerWidgetProvider.render(this, state, cover, theme, showArtist, width, 148)
+        val views = PlayerWidgetProvider.render(this, state, cover, theme, showArtist, width, 148, backgroundOpacity)
+        // A neutral sample backdrop makes partial/zero opacity visible in the sheet.
+        preview.background = if (backgroundOpacity < 100) GradientDrawable().apply {
+            setColor(0xff777777.toInt())
+            cornerRadius = dp(28).toFloat()
+        } else null
         preview.removeAllViews()
         preview.addView(InertFrame(this).apply { addView(views.apply(this@PlayerWidgetConfigurationActivity, this)) })
         for ((key, tile) in tiles) select(tile, key == theme)
