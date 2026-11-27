@@ -14,6 +14,7 @@ jobs:
     env:
       MORNYE_DISCORD_SDK: "0"
       MORNYE_RUST_ANDROID_ABIS: arm64-v8a
+      GRADLE_OPTS: "-Dorg.gradle.caching=true"
 
     steps:
       - name: Free disk space
@@ -40,6 +41,27 @@ jobs:
           flutter-version-file: .fvmrc
           cache: true
 
+      # Use the wrapper already pinned by Mornye, and persist its caches.
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: false
+          gradle-home-cache-includes: |
+            caches/modules-2
+            caches/build-cache-1
+            wrapper/dists
+
+      # Cache only the required Android tool versions, not the whole SDK.
+      - name: Cache Android SDK packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            /usr/local/lib/android/sdk/ndk/30.0.16248370
+            /usr/local/lib/android/sdk/platforms/android-37.0
+            /usr/local/lib/android/sdk/build-tools/37.0.0
+            /usr/local/lib/android/sdk/cmake/4.1.2
+          key: mornye-android-sdk-v1-${{ runner.os }}-${{ runner.arch }}-ndk30.0.16248370-api37.0-bt37.0.0-cmake4.1.2
+
       - name: Install Android SDK and NDK
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
@@ -61,13 +83,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev
 
-      - name: Prepare Flutter SDK
-        run: dart scripts/prepare_flutter_sdk.dart
+      # Same Cargo target directory used by scripts/build_rust_backend.sh.
+      # A new Rust source hash gets a new cache, with a compatible fallback.
+      - name: Cache Cargo registry and Rust build outputs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust_backend/target
+          key: mornye-cargo-v1-${{ runner.os }}-${{ runner.arch }}-android-arm64-ndk30.0.16248370-${{ hashFiles('rust_backend/rust-toolchain.toml', 'rust_backend/Cargo.lock') }}-${{ hashFiles('rust_backend/**/*.rs', 'rust_backend/**/*.toml', 'rust_backend/**/*.js', 'rust_backend/**/*.tsv', 'rust_backend/**/*.pem', 'scripts/build_rust_backend.sh') }}
+          restore-keys: |
+            mornye-cargo-v1-${{ runner.os }}-${{ runner.arch }}-android-arm64-ndk30.0.16248370-${{ hashFiles('rust_backend/rust-toolchain.toml', 'rust_backend/Cargo.lock') }}-
 
       - name: Install Flutter dependencies
-        run: |
-          flutter pub get
-          dart scripts/gen_l10n.dart
+        run: flutter pub get
+
+      # build_android.sh already prepares the SDK patch and generates l10n.
 
       - name: Build APK
         run: bash scripts/build_android.sh --lite
