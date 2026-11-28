@@ -47,6 +47,19 @@
   </a>
 </p>
 
+## About This Fork
+
+This repository is a modified version of Original.
+
+This fork includes improvements and personal customizations related to the app's widgets.
+
+## Acknowledgements
+
+Special thanks to the original author for creating and sharing
+this wonderful open-source project.
+
+Special thanks to chatGPT, you're so good =)
+
 ## <picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/sections/section-screenshots-dark.svg"><img src="assets/readme/sections/section-screenshots-light.svg" height="32" align="top" alt=""></picture> Screenshots
 
 <picture>
@@ -474,16 +487,3 @@ This repository and its contents are provided for educational and research purpo
 
 > [!TIP]
 > **Star the repo** to get notified about all new releases directly from GitHub.
-
-## About This Fork
-
-This repository is a modified version of Original.
-
-This fork includes improvements and personal customizations related to the app's widgets.
-
-## Acknowledgements
-
-Special thanks to the original author for creating and sharing
-this wonderful open-source project.
-
-Special thanks to chatGPT, you're so good =)
